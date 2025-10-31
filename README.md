@@ -72,6 +72,16 @@ uv run python3 -m uvicorn app.main:app --reload
 
 ---
 
+### Settings
+
+Key knobs live in `app/settings.py`:
+- `MAX_WORKERS` (global concurrent jobs)
+- `MAX_ACTIVE_USERS` (concurrent tenants allowed to run)
+- `ENABLE_INSTANTSEG` (try InstanSeg if installed; falls back safely if not)
+- `TILE_SIZE`, `TILE_OVERLAP` (tiling parameters)
+
+---
+
 ## 3) Use the UI
 
 Open `http://127.0.0.1:8000/ui`. Follow these steps top-to-bottom:
@@ -92,6 +102,7 @@ Open `http://127.0.0.1:8000/ui`. Follow these steps top-to-bottom:
   - `TISSUE_MASK`: classical thresholding to mark tissue vs background (green overlay). Useful to skip blank tiles.
 - Optional `branch`: jobs in the same branch run serially; different branches can run concurrently.
 - Click Create Job; you’ll see a `job_id`.
+- Up to 10 jobs per workflow are allowed; the counter shows jobs created.
 
 5) Start / Observe
 - Click "Start Queue" to start all PENDING jobs, or click "Start" on an individual job card.
@@ -101,6 +112,7 @@ Open `http://127.0.0.1:8000/ui`. Follow these steps top-to-bottom:
   - "Queued: waiting for worker capacity"
 - Job progress shows tiles processed; workflow progress shows aggregate completion.
 - After success, use "Preview" (stitched overlay), "Artifacts" (ZIP of masks + preview), and "Download" (manifest JSON).
+- You can cancel a PENDING job, and retry a FAILED job. Actions appear contextually on each job card.
 
 Outputs are saved under `uploads/results/<job_id>/`.
 
@@ -155,7 +167,7 @@ Headers: `X-User-ID: <your-id>` unless noted.
 
 ---
 
-## 6) Scaling to 10× (short, practical)
+## 6) Scaling to 10×
 
 - Workers & queue
   - Split API and workers; use Redis or a durable queue. Each worker runs tiles with `asyncio.Semaphore` per GPU/CPU slot.
@@ -168,12 +180,29 @@ Headers: `X-User-ID: <your-id>` unless noted.
 - Hardware
   - Pool multiple GPUs (CUDA) or Apple Silicon devices (MPS). Pin workers per device.
 
-- Observability
-  - Export Prometheus metrics: `queue_depth`, `active_jobs`, `job_latency_seconds`, `per_branch_queue_depth`.
+- Observability (optional)
+  - Export metrics: `queue_depth`, `active_jobs`, `job_latency_seconds`, `per_branch_queue_depth`.
   - Dashboard tiles/sec, job latency, active users, error rates.
 
 - Resilience
   - Add retries with backoff at tile level. Persist job state and artifacts to object storage (e.g., S3).
+
+---
+
+## 7) Testing & Monitoring (production)
+
+Note: Prometheus/Grafana are not bundled in this repo; items below are guidance if you choose to add them.
+
+- Testing
+  - Unit: scheduler branch-serial ordering, `MAX_WORKERS` cap, 3 active-user gate, job store state transitions and cancel/retry rules.
+  - Integration: upload → create workflow → create job → start → receive SSE updates → SUCCEEDED/FAILED → preview/artifacts present on disk.
+  - Performance: measure tiles/sec on representative SVS files; run concurrent jobs across branches and users to verify throughput and fairness.
+
+- Monitoring
+  - Metrics (optional via Prometheus): `queue_depth`, `active_workers`, `active_users`, `job_latency_seconds`, `per_branch_queue_depth` (e.g., expose at `/metrics`).
+  - Logs: structured JSON logs with `job_id`, `workflow_id`, `user_id`, state changes, durations, and errors; ship to a log backend.
+  - Alerts: stuck jobs (RUNNING > N minutes), surge in failures, backlog growth beyond threshold, no workers available.
+  - Dashboards (optional via Grafana): tiles/sec, job latency percentiles, active users/workers, queue depth per branch, error rates.
 
 ---
 
