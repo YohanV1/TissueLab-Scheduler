@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scheduler UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.28), transparent 40%),
+                    radial-gradient(circle at 90% 10%, rgba(236, 72, 153, 0.25), transparent 42%),
+                    radial-gradient(circle at 50% 90%, rgba(56, 189, 248, 0.2), transparent 48%),
+                    #0d0e22;
+        color: #e2e8f0;
+      }
+      .tile-overlay {
+        background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 72px 72px;
+      }
+      .glass-card {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.4) 100%);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.36);
+      }
+      .hero-card {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(15, 23, 42, 0.75) 100%);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 32px 70px rgba(15, 23, 42, 0.45);
+      }
+      .btn-gradient {
+        background-image: linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899);
+        box-shadow: 0 14px 30px rgba(129, 140, 248, 0.35);
+      }
+      .btn-pill {
+        background: rgba(148, 163, 184, 0.16);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+      }
+    </style>
+  </head>
+  <body class="relative min-h-screen overflow-x-hidden">
+    <div class="tile-overlay absolute inset-0 opacity-50"></div>
+    <div class="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-white/20 via-white/5 to-transparent pointer-events-none"></div>
+
+    <div class="relative z-10">
+      <div class="max-w-6xl mx-auto px-6 py-12 space-y-16">
+        <header class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex items-center gap-3">
+            <div class="grid grid-cols-2 gap-0.5">
+              <span class="h-3 w-3 rounded-md bg-indigo-400"></span>
+              <span class="h-3 w-3 rounded-md bg-fuchsia-400"></span>
+              <span class="h-3 w-3 rounded-md bg-purple-500"></span>
+              <span class="h-3 w-3 rounded-md bg-sky-400"></span>
+            </div>
+            <div>
+              <div class="text-lg font-semibold tracking-wide text-slate-100">The Image-Inference Workflow Scheduler</div>
+              <p class="text-xs text-slate-400">Branch-aware workflow console for large image inference</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/docs" class="btn-gradient inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium text-white shadow-lg transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/80">
+              <span>API Docs</span>
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
+            </a>
+          </div>
+        </header>
+
+        <div class="flex flex-col items-center gap-6 text-center">
+          <h1 class="text-4xl font-semibold tracking-tight text-white sm:text-5xl">Workflow Scheduler Console</h1>
+          <p class="max-w-2xl text-sm text-slate-200/80 sm:text-base">
+            Launch jobs for InstanSeg tiling with branch-aware scheduling, multi-tenant isolation, and live progress updates.
+          </p>
+        </div>
+
+        <section id="workspace" class="grid grid-cols-1 gap-10 xl:grid-cols-[1.15fr_0.85fr]">
+          <div class="space-y-8">
+            <div class="glass-card rounded-[32px] px-8 py-8 space-y-8">
+              <div>
+                <h2 class="text-lg font-semibold text-white">Workspace Setup</h2>
+                <p class="mt-1 text-sm text-slate-300/80">Define your tenant, upload a Whole Slide Image, and prime your workflow.</p>
+              </div>
+
+              <div class="grid gap-6 md:grid-cols-2">
+                <div class="space-y-2">
+                  <label class="text-xs uppercase tracking-wide text-slate-400">X-User-ID</label>
+                  <input id="userId" class="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/40" placeholder="123e4567-e89b-12d3-a456-426614174000" />
+                  <p class="text-[11px] text-slate-400">Up to three distinct users can run jobs simultaneously.</p>
+                </div>
+                <div class="space-y-2">
+                  <label class="text-xs uppercase tracking-wide text-slate-400">Current File</label>
+                  <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-indigo-200/90">
+                    <span id="fileId" class="font-mono text-xs">-</span>
+                  </div>
+                  <p id="uploadError" class="text-[11px] font-medium text-rose-300 hidden"></p>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <label class="text-xs uppercase tracking-wide text-slate-400">Upload Whole Slide Image</label>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input id="fileInput" type="file" class="flex-1 rounded-xl border border-dashed border-indigo-300/40 bg-white/5 px-4 py-2 text-xs text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-500/20 file:px-3 file:py-1.5 file:text-indigo-100 hover:border-indigo-200/60" />
+                  <button class="btn-gradient inline-flex items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium text-white transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/70" onclick="uploadFile()">
+                    <span>Upload</span>
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M16 12l-4-4m0 0-4 4m4-4v12" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="text-xs text-slate-400">Prefer `.svs` slides for native OpenSlide tiling. PNG/JPEG supported for small tests.</p>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-[32px] px-8 py-8 space-y-6">
+              <div>
+                <h2 class="text-lg font-semibold text-white">Workflow Details</h2>
+                <p class="mt-1 text-sm text-slate-300/80">Spin up a workflow container to group branches and stream consolidated progress.</p>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs uppercase tracking-wide text-slate-400">Workflow ID</label>
+                <div class="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-mono text-indigo-200/90" id="workflowId">-</div>
+              </div>
+
+              <button class="btn-gradient inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium text-white transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/70 sm:w-auto" onclick="createWorkflow()">
+                <span>New Workflow</span>
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5" />
+                </svg>
+              </button>
+
+              <p class="text-xs text-slate-400">Each workflow respects tenant isolation and enforces branch-aware sequencing.</p>
+            </div>
+
+            <div class="glass-card rounded-[32px] px-8 py-8 space-y-6">
+              <div>
+                <h2 class="text-lg font-semibold text-white">Job Builder</h2>
+                <p class="mt-1 text-sm text-slate-300/80">Assign tiles to branches, set job types, and queue up to ten tasks per workflow.</p>
+              </div>
+
+              <div class="grid gap-6 sm:grid-cols-2">
+                <div class="space-y-2">
+                  <label class="text-xs uppercase tracking-wide text-slate-400">Job Type</label>
+                  <select id="jobType" class="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/40">
+                    <option value="SEGMENT_CELLS">SEGMENT_CELLS</option>
+                    <option value="TISSUE_MASK">TISSUE_MASK</option>
+                  </select>
+                </div>
+                <div class="space-y-2">
+                  <label class="text-xs uppercase tracking-wide text-slate-400">Jobs Created</label>
+                  <div id="jobCountDisplay" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-indigo-200/90">0 / 10</div>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs uppercase tracking-wide text-slate-400">Branch</label>
+                <input id="branch" class="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/40" placeholder="leave empty for default" />
+                <p class="text-[11px] text-slate-400">Same branch jobs run serially; different branches run concurrently within the global worker cap.</p>
+              </div>
+
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-slate-400">Queue jobs now; start them individually or from the timeline once ready.</p>
+                <button class="btn-gradient inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium text-white transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/70" onclick="createJob()">
+                  Create Job
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="grid gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-xs text-slate-300/80">
+                <div class="font-medium text-slate-200">Scheduling Rules</div>
+                <ul class="space-y-2 text-[12px]">
+                  <li class="flex items-start gap-2"><span class="mt-0.5 text-xs">•</span> Serial execution within a branch with FIFO ordering.</li>
+                  <li class="flex items-start gap-2"><span class="mt-0.5 text-xs">•</span> Global concurrency limited to `MAX_WORKERS`; cross-branch jobs run in parallel.</li>
+                  <li class="flex items-start gap-2"><span class="mt-0.5 text-xs">•</span> Active user cap at three; additional tenants queue until a slot frees up.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-8">
+            <div class="glass-card rounded-[32px] px-8 py-8 space-y-6">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 class="text-lg font-semibold text-white">Execution Timeline</h2>
+                  <p class="text-sm text-slate-300/80">Track workflow progress, live job states, and per-branch throughput.</p>
+                </div>
+                <div class="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-300" id="workflowState">-</div>
+        </div>
+
+              <div class="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div id="workflowProgressBar" class="h-full w-0 rounded-full bg-gradient-to-r from-indigo-400 via-purple-400 to-fuchsia-400 transition-[width] duration-500"></div>
+              </div>
+              <div class="text-xs text-slate-300/80">Progress: <span id="workflowProgress" class="font-mono text-sm text-white">0%</span></div>
+
+              <div class="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-xs text-slate-300/80">
+                <p class="mb-3 text-sm font-medium text-slate-200">Jobs in Workflow</p>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <span>Start pending jobs in bulk or individually.</span>
+                  <button id="startAllBtn" class="btn-gradient inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium text-white transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/70" onclick="startAllJobsInWorkflow()">
+                    Start Queue
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </button>
+            </div>
+            </div>
+
+              <div id="jobsList" class="space-y-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-5 text-xs text-slate-200">
+                <div class="text-slate-400 italic">No jobs yet. Create jobs to populate the queue.</div>
+              </div>
+            </div>
+
+            <div class="glass-card rounded-[32px] px-8 py-8">
+              <h2 class="text-lg font-semibold text-white">Operator Tips</h2>
+              <div class="mt-4 grid gap-3 text-sm text-slate-300/80">
+                <p class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Use InstanSeg tiling for gigapixel slides; download artifacts to inspect per-tile masks.</p>
+                <p class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Retry failed jobs without leaving the console &mdash; they retain branch ordering.</p>
+                <p class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">Stream progress to dashboards via the SSE endpoints for live observability.</p>
+              </div>
+              </div>
+            </div>
+          </section>
+
+        <footer class="pb-4 pt-8 text-center text-xs text-slate-400">
+          <div>Built by Yohan for TissueLab • FastAPI · Tailwind · OpenSlide · InstanSeg</div>
+          <div class="mt-2"><a class="text-indigo-200 hover:text-white transition" href="https://github.com">View Source</a></div>
+        </footer>
+      </div>
+    </div>
+
+    <div id="toastContainer" class="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <script>
+      const api = (path) => path; // same origin
+      let workflowEventStream = null;
+      const START_BUTTON_ACTIVE_CLASS = 'btn-gradient inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium text-white transition hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200/70';
+      const START_BUTTON_DISABLED_CLASS = 'inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-medium text-slate-400/70 cursor-not-allowed';
+      const JOB_COUNT_BASE_CLASS = 'rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-indigo-200/90';
+      const JOB_COUNT_LIMIT_CLASS = 'rounded-xl border border-rose-400 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-200 shadow-[0_0_30px_rgba(244,114,182,0.3)]';
+
+      const toastThemes = {
+        info: {
+          container: 'bg-gray-900/95 text-gray-50',
+          button: 'text-gray-200/80 hover:text-gray-100 focus-visible:ring-gray-100/60'
+        },
+        success: {
+          container: 'bg-emerald-600 text-white',
+          button: 'text-white/80 hover:text-white focus-visible:ring-white/70'
+        },
+        error: {
+          container: 'bg-red-600 text-white',
+          button: 'text-white/80 hover:text-white focus-visible:ring-white/70'
+        },
+        warning: {
+          container: 'bg-amber-400 text-gray-900',
+          button: 'text-gray-900/80 hover:text-gray-900 focus-visible:ring-gray-900/40'
+        }
+      };
+
+      function showToast(message, variant = 'info', options = {}) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        const theme = toastThemes[variant] || toastThemes.info;
+        const toast = document.createElement('div');
+        toast.setAttribute('role', 'status');
+        toast.className = `pointer-events-auto flex w-72 max-w-sm items-start gap-3 rounded-lg px-4 py-3 shadow-2xl ring-1 ring-black/15 backdrop-blur-sm transition duration-200 ease-out ${theme.container}`;
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-6px)';
+
+        const text = document.createElement('div');
+        text.className = 'flex-1 text-sm leading-5';
+        text.textContent = message;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `ml-auto text-xs font-medium uppercase tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent ${theme.button}`;
+        button.textContent = 'Dismiss';
+
+        const hide = () => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(-6px)';
+          toast.style.pointerEvents = 'none';
+          window.setTimeout(() => {
+            if (toast.parentNode === container) {
+              container.removeChild(toast);
+            }
+          }, 180);
+        };
+
+        let hideTimer = null;
+        const startHideTimer = (ms) => {
+          if (ms <= 0) return;
+          if (hideTimer) {
+            window.clearTimeout(hideTimer);
+          }
+          hideTimer = window.setTimeout(() => {
+            hide();
+            hideTimer = null;
+          }, ms);
+        };
+
+        button.addEventListener('click', () => {
+          if (hideTimer) {
+            window.clearTimeout(hideTimer);
+            hideTimer = null;
+          }
+          hide();
+        });
+
+        const duration = typeof options.duration === 'number' ? options.duration : 4500;
+        if (duration > 0) {
+          startHideTimer(duration);
+          toast.addEventListener('mouseenter', () => {
+            if (hideTimer) {
+              window.clearTimeout(hideTimer);
+              hideTimer = null;
+            }
+          });
+          toast.addEventListener('mouseleave', () => {
+            if (!toast.isConnected) return;
+            startHideTimer(1600);
+          });
+        }
+
+        toast.appendChild(text);
+        toast.appendChild(button);
+        container.appendChild(toast);
+
+        requestAnimationFrame(() => {
+          toast.style.opacity = '1';
+          toast.style.transform = 'translateY(0)';
+        });
+      }
+
+      function getUserId() {
+        const v = document.getElementById('userId').value.trim();
+        if (!v) throw new Error('Enter X-User-ID first');
+        return v;
+      }
+
+      async function uploadFile() {
+        const errorEl = document.getElementById('uploadError');
+        const fileIdEl = document.getElementById('fileId');
+        
+        try {
+          // Check X-User-ID first
+          const userIdEl = document.getElementById('userId');
+          if (!userIdEl || !userIdEl.value.trim()) {
+            if (errorEl) {
+              errorEl.textContent = 'Please enter X-User-ID first';
+              errorEl.classList.remove('hidden');
+            }
+            showToast('Please enter X-User-ID in the "User" section first', 'warning');
+            return;
+          }
+          
+          const userId = userIdEl.value.trim();
+          
+          // Check file is selected
+          const fileInput = document.getElementById('fileInput');
+          if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+            if (errorEl) {
+              errorEl.textContent = 'Please choose a file first';
+              errorEl.classList.remove('hidden');
+            }
+            showToast('Please choose a file first', 'warning');
+            return;
+          }
+          
+          // Clear previous errors
+          if (errorEl) {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+          }
+          
+          // Show uploading state
+          if (fileIdEl) {
+            fileIdEl.textContent = 'Uploading...';
+          }
+          
+          const fd = new FormData();
+          fd.append('file', fileInput.files[0]);
+          
+          const res = await fetch(api('/files'), { 
+            method: 'POST', 
+            headers: { 'X-User-ID': userId }, 
+            body: fd 
+          });
+          
+          if (!res.ok) {
+            let errorMsg = `Upload failed (${res.status})`;
+            try {
+              const errorData = await res.json();
+              errorMsg = errorData.detail || errorMsg;
+            } catch {
+              const errorText = await res.text();
+              errorMsg = errorText || errorMsg;
+            }
+            throw new Error(errorMsg);
+          }
+          
+          const data = await res.json();
+          if (!data || !data.file || !data.file.file_id) {
+            throw new Error('Invalid response from server: missing file_id');
+          }
+          
+          // Success - show file ID
+          if (fileIdEl) {
+            fileIdEl.textContent = data.file.file_id;
+          }
+
+          showToast('File uploaded successfully', 'success');
+          
+        } catch (e) {
+          // Show error
+          if (errorEl) {
+            errorEl.textContent = e.message;
+            errorEl.classList.remove('hidden');
+          }
+          if (fileIdEl) {
+            fileIdEl.textContent = '';
+          }
+          showToast(`Upload failed: ${e.message}`, 'error');
+          console.error('Upload error:', e);
+        }
+      }
+
+      async function createWorkflow() {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api('/workflows'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-User-ID': userId },
+            body: JSON.stringify({ name: null })
+          });
+          if (!res.ok) throw new Error('Create workflow failed');
+          const data = await res.json();
+          document.getElementById('workflowId').textContent = data.workflow.workflow_id;
+          await refreshJobsList();
+          showToast('Workflow created. Add jobs to get started.', 'success');
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function createJob() {
+        try {
+          const userId = getUserId();
+          const workflowId = document.getElementById('workflowId').textContent.trim();
+          const fileId = document.getElementById('fileId').textContent.trim();
+          const branch = document.getElementById('branch').value || null;
+          const jobType = document.getElementById('jobType').value;
+          if (!workflowId || !fileId) throw new Error('Upload file and create workflow first');
+          
+          // Check job limit (10)
+          const resCheck = await fetch(api(`/workflows/${workflowId}/jobs`), {
+            headers: { 'X-User-ID': userId }
+          });
+          if (resCheck.ok) {
+            const existingJobs = await resCheck.json();
+            if (existingJobs.length >= 10) {
+              showToast('Maximum 10 jobs per workflow. Start existing jobs or create a new workflow.', 'warning');
+              return;
+            }
+          }
+          
+          const res = await fetch(api('/jobs'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-User-ID': userId },
+            body: JSON.stringify({ workflow_id: workflowId, file_id: fileId, branch, job_type: jobType })
+          });
+          if (!res.ok) throw new Error('Create job failed');
+          const data = await res.json();
+          await refreshJobsList();
+          await updateJobCount();
+          // Auto-start watching if not already
+          if (!workflowEventStream) {
+            toggleWorkflowWatch();
+          }
+          showToast('Job created', 'success', { duration: 2800 });
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function updateJobCount() {
+        try {
+          const userId = getUserId();
+          const workflowId = document.getElementById('workflowId').textContent.trim();
+          if (!workflowId) return;
+          
+          const res = await fetch(api(`/workflows/${workflowId}/jobs`), {
+            headers: { 'X-User-ID': userId }
+          });
+          if (!res.ok) return;
+          const jobs = await res.json();
+          const countEl = document.getElementById('jobCountDisplay');
+          if (countEl) {
+            countEl.textContent = `${jobs.length} / 10 jobs created`;
+            if (jobs.length >= 10) {
+              countEl.className = JOB_COUNT_LIMIT_CLASS;
+            } else {
+              countEl.className = JOB_COUNT_BASE_CLASS;
+            }
+          }
+        } catch (e) {}
+      }
+
+      async function startSingleJob(jobId, options = {}) {
+        const { skipWatch = false, suppressAlert = false } = options;
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/start`), { method: 'POST', headers: { 'X-User-ID': userId } });
+          if (!res.ok) {
+            const message = await res.text();
+            throw new Error(message || 'Start failed');
+          }
+          // Auto-start watching workflow to see all jobs unless suppressed
+          if (!skipWatch && !workflowEventStream) {
+            toggleWorkflowWatch();
+          }
+          await refreshJobsList();
+          if (!suppressAlert) {
+            showToast('Job queued', 'success', { duration: 2800 });
+          }
+        } catch (e) {
+          if (!suppressAlert) {
+            showToast(e.message, 'error');
+          }
+        }
+      }
+
+      async function startAllJobsInWorkflow() {
+        try {
+          const userId = getUserId();
+          const workflowId = document.getElementById('workflowId').textContent.trim();
+          if (!workflowId) throw new Error('Create a workflow first');
+          
+          const res = await fetch(api(`/workflows/${workflowId}/jobs`), {
+            headers: { 'X-User-ID': userId }
+          });
+          if (!res.ok) throw new Error('Failed to get jobs');
+          const jobs = await res.json();
+          
+          if (!jobs.length) {
+            showToast('No jobs in workflow. Create jobs first.', 'warning');
+            return;
+          }
+          
+          const pendingJobs = jobs.filter(j => j.state === 'PENDING');
+          if (!pendingJobs.length) {
+            showToast('No pending jobs to start.', 'info');
+            return;
+          }
+          
+          // Start each pending job (first call ensures watcher is running)
+          for (let i = 0; i < pendingJobs.length; i++) {
+            const job = pendingJobs[i];
+            await startSingleJob(job.job_id, { skipWatch: i > 0, suppressAlert: true });
+          }
+          
+          const btn = document.getElementById('startAllBtn');
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Start Queue';
+            btn.className = START_BUTTON_ACTIVE_CLASS;
+          }
+          await refreshJobsList();
+          showToast('Jobs have been queued. If other users are running jobs, yours will start when a slot frees up.', 'success', { duration: 6000 });
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function cancelSingleJob(jobId) {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/cancel`), { method: 'POST', headers: { 'X-User-ID': userId } });
+          if (!res.ok) throw new Error('Cancel failed');
+          await refreshJobsList();
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function retrySingleJob(jobId) {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/retry`), { method: 'POST', headers: { 'X-User-ID': userId } });
+          if (!res.ok) throw new Error('Retry failed');
+          // Auto-start after retry
+          await startSingleJob(jobId);
+          await refreshJobsList();
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function previewSingleJob(jobId) {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/preview`), { headers: { 'X-User-ID': userId } });
+          if (!res.ok) { const t = await res.text(); throw new Error(t || 'Preview not ready'); }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function downloadSingleJob(jobId) {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/result`), { headers: { 'X-User-ID': userId } });
+          if (!res.ok) { const t = await res.text(); throw new Error(t || 'Result not ready'); }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${jobId}_result.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+      async function downloadArtifactsSingleJob(jobId) {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/artifacts.zip`), { headers: { 'X-User-ID': userId } });
+          if (!res.ok) { const t = await res.text(); throw new Error(t || 'Artifacts not ready'); }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${jobId}_artifacts.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        } catch (e) { showToast(e.message, 'error'); }
+      }
+
+
+      async function fetchQueueStatus(jobId) {
+        try {
+          const userId = getUserId();
+          const res = await fetch(api(`/jobs/${jobId}/queue_status`), { headers: { 'X-User-ID': userId } });
+          if (!res.ok) return;
+          const data = await res.json();
+          const qe = document.getElementById(`queue-${jobId}`);
+          if (!qe) return;
+          if (!data || !data.queued) { qe.textContent = ''; return; }
+          const mapReason = (r) => ({
+            'USER_SLOT': 'active-user slot',
+            'BRANCH': 'branch lock',
+            'WORKER': 'worker capacity'
+          })[r] || r.toLowerCase();
+          const reasons = Array.isArray(data.waiting_for) ? data.waiting_for.map(mapReason) : [];
+          const prefix = 'Queued';
+          if (reasons.length) {
+            let extra = '';
+            if (data.waiting_for.includes('USER_SLOT') && typeof data.active_users === 'number' && typeof data.max_active_users === 'number') {
+              extra = ` (${data.active_users}/${data.max_active_users} active users)`;
+            }
+            qe.textContent = `${prefix}: waiting for ${reasons.join(', ')}${extra}`;
+          } else {
+            qe.textContent = prefix;
+          }
+        } catch {}
+      }
+
+      function updateJobInList(jobId, state, progress, tilesProcessed, tilesTotal) {
+        let jobEl = document.getElementById(`job-${jobId}`);
+        if (!jobEl) {
+          const listEl = document.getElementById('jobsList');
+          if (listEl && listEl.children[0] && listEl.children[0].textContent.includes('No jobs')) {
+            listEl.innerHTML = '';
+          }
+          jobEl = document.createElement('div');
+          jobEl.id = `job-${jobId}`;
+          jobEl.className = 'rounded-2xl border border-white/10 bg-white/5 px-4 py-4 shadow-[0_24px_48px_-24px_rgba(15,23,42,0.9)] space-y-3';
+          jobEl.innerHTML = `
+            <div class="flex items-center justify-between">
+              <div class="font-mono text-xs tracking-wide text-slate-400">${jobId.substring(0, 8)}...</div>
+              <div id="job-state-${jobId}" class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-wide"></div>
+            </div>
+            <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div id="job-bar-${jobId}" class="h-full" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-300/80">
+              <span id="job-percent-${jobId}">0%</span>
+              <span id="job-tiles-${jobId}">0 / 0 tiles</span>
+            </div>
+            <div class="text-[11px] text-slate-400" id="queue-${jobId}"></div>
+            <div id="job-actions-${jobId}" class="flex flex-wrap gap-2 pt-2 border-t border-white/10" data-state=""></div>
+          `;
+          if (listEl) listEl.appendChild(jobEl);
+        }
+
+        const pct = Math.round((progress || 0) * 100);
+        const stateColors = {
+          'PENDING': 'text-slate-300/80',
+          'RUNNING': 'text-sky-300 font-medium',
+          'SUCCEEDED': 'text-emerald-300 font-medium',
+          'FAILED': 'text-rose-300 font-medium',
+          'CANCELED': 'text-slate-500'
+        };
+        const barColors = {
+          'PENDING': 'bg-white/30',
+          'RUNNING': 'bg-gradient-to-r from-indigo-400 via-purple-400 to-fuchsia-400',
+          'SUCCEEDED': 'bg-emerald-400',
+          'FAILED': 'bg-rose-400',
+          'CANCELED': 'bg-white/30'
+        };
+
+        const stateEl = document.getElementById(`job-state-${jobId}`);
+        const barEl = document.getElementById(`job-bar-${jobId}`);
+        const pctEl = document.getElementById(`job-percent-${jobId}`);
+        const tilesEl = document.getElementById(`job-tiles-${jobId}`);
+        const actionsEl = document.getElementById(`job-actions-${jobId}`);
+
+        if (stateEl) {
+          stateEl.textContent = state;
+          stateEl.className = `rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-wide ${stateColors[state] || 'text-slate-200'}`;
+        }
+        if (barEl) {
+          barEl.className = `h-full ${barColors[state] || 'bg-white/30'}`;
+          barEl.style.width = `${pct}%`;
+        }
+        if (pctEl) pctEl.textContent = `${pct}%`;
+        if (tilesEl) tilesEl.textContent = `${tilesProcessed || 0} / ${tilesTotal || 0} tiles`;
+
+        if (actionsEl) {
+          const prev = actionsEl.getAttribute('data-state');
+          if (prev !== state) {
+            actionsEl.setAttribute('data-state', state);
+            if (state === 'PENDING') {
+              actionsEl.innerHTML = `
+                <button class="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-100/80 transition hover:border-white/40 hover:text-white" onclick="startSingleJob('${jobId}')">Start</button>
+                <button class="inline-flex items-center gap-1 rounded-full border border-rose-400 px-3 py-1 text-[11px] uppercase tracking-wide text-rose-200 transition hover:border-rose-300 hover:text-rose-100" onclick="cancelSingleJob('${jobId}')">Cancel</button>
+              `;
+            } else if (state === 'FAILED') {
+              actionsEl.innerHTML = `
+                <button class="inline-flex items-center gap-1 rounded-full border border-amber-300 px-3 py-1 text-[11px] uppercase tracking-wide text-amber-200 transition hover:border-amber-200 hover:text-amber-100" onclick="retrySingleJob('${jobId}')">Retry</button>
+              `;
+            } else if (state === 'SUCCEEDED') {
+              actionsEl.innerHTML = `
+                <button class="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-[11px] uppercase tracking-wide text-indigo-200 transition hover:border-white/40 hover:text-white" onclick="previewSingleJob('${jobId}')">Preview</button>
+                <button class="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-[11px] uppercase tracking-wide text-indigo-200 transition hover:border-white/40 hover:text-white" onclick="downloadSingleJob('${jobId}')">Download</button>
+                <button class="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-[11px] uppercase tracking-wide text-indigo-200 transition hover:border-white/40 hover:text-white" onclick="downloadArtifactsSingleJob('${jobId}')">Artifacts</button>
+              `;
+            } else {
+              actionsEl.innerHTML = '';
+            }
+          }
+        }
+
+        // Update queue status hint for pending jobs
+        if (state === 'PENDING') {
+          fetchQueueStatus(jobId).catch(() => {});
+        } else {
+          const qe = document.getElementById(`queue-${jobId}`);
+          if (qe) qe.textContent = '';
+        }
+      }
+
+      function updateWorkflowProgress(f) {
+        const pct = Math.round((f || 0) * 100);
+        document.getElementById('workflowProgressBar').style.width = `${pct}%`;
+        document.getElementById('workflowProgress').textContent = `${pct}%`;
+      }
+
+
+      function toggleWorkflowWatch() {
+        const userId = document.getElementById('userId').value.trim();
+        const workflowId = document.getElementById('workflowId').textContent.trim();
+        
+        // Close existing stream if any
+        if (workflowEventStream) {
+          workflowEventStream.close();
+          workflowEventStream = null;
+        }
+        
+        if (!userId || !workflowId) return;
+        
+        const url = `/workflows/${workflowId}/events?user_id=${encodeURIComponent(userId)}`;
+        workflowEventStream = new EventSource(url);
+        workflowEventStream.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data);
+            document.getElementById('workflowState').textContent = data.state;
+            updateWorkflowProgress(data.percent_complete);
+            
+            // Update all jobs in the list
+            if (data.jobs && Array.isArray(data.jobs)) {
+              data.jobs.forEach(job => {
+                updateJobInList(job.job_id, job.state, job.progress, job.tiles_processed, job.tiles_total);
+              });
+              
+              // Update Start button state
+              const pendingJobs = data.jobs.filter(j => j.state === 'PENDING');
+              const btn = document.getElementById('startAllBtn');
+              if (btn) {
+                if (pendingJobs.length === 0) {
+                  btn.disabled = true;
+                  btn.textContent = 'No Pending Jobs';
+                  btn.className = START_BUTTON_DISABLED_CLASS;
+                } else {
+                  btn.disabled = false;
+                  btn.textContent = 'Start Queue';
+                  btn.className = START_BUTTON_ACTIVE_CLASS;
+                }
+              }
+            }
+          } catch {}
+        };
+      }
+
+      async function refreshJobsList() {
+        try {
+          const userId = getUserId();
+          const workflowId = document.getElementById('workflowId').textContent.trim();
+          if (!workflowId) return;
+          
+          const res = await fetch(api(`/workflows/${workflowId}/jobs`), {
+            headers: { 'X-User-ID': userId }
+          });
+          if (!res.ok) return;
+          const jobs = await res.json();
+          
+          const listEl = document.getElementById('jobsList');
+          if (jobs.length === 0) {
+            listEl.innerHTML = '<div class="text-slate-400/80 italic">No jobs yet. Create jobs to populate the queue.</div>';
+            return;
+          }
+          
+          listEl.innerHTML = '';
+          jobs.forEach(job => {
+            updateJobInList(job.job_id, job.state, job.progress, job.tiles_processed, job.tiles_total);
+          });
+          
+          // Update Start button state
+          const pendingJobs = jobs.filter(j => j.state === 'PENDING');
+          const btn = document.getElementById('startAllBtn');
+          if (btn) {
+            if (pendingJobs.length === 0) {
+              btn.disabled = true;
+              btn.textContent = 'No Pending Jobs';
+              btn.className = START_BUTTON_DISABLED_CLASS;
+            } else {
+              btn.disabled = false;
+              btn.textContent = 'Start Queue';
+              btn.className = START_BUTTON_ACTIVE_CLASS;
+            }
+          }
+          
+          await updateJobCount();
+        } catch (e) { console.warn(e); }
+      }
+
+
+    </script>
+  </body>
+  </html>
+
+
