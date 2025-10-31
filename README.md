@@ -6,9 +6,7 @@ A tiny but complete scheduler for large-image inference (Whole Slide Images / SV
 - Multi-tenant isolation (per `X-User-ID`) with a hard limit of 3 active users
 - Long-running, tile-based jobs with progress and live updates (SSE)
 - Two job types: SEGMENT_CELLS (InstanSeg) and TISSUE_MASK (thresholding)
-- Simple Tailwind UI at `/ui` to upload, create workflows, create jobs, start, watch, and download outputs
-
-If you follow the steps below exactly, it will work. No guesswork.
+- Simple Tailwind UI at `/ui` to upload, create workflows, create jobs, start, watch, and download outputs (with live queue status hints)
 
 ---
 
@@ -74,7 +72,7 @@ uv run python3 -m uvicorn app.main:app --reload
 
 ---
 
-## 3) Use the UI (idiot-proof tour)
+## 3) Use the UI
 
 Open `http://127.0.0.1:8000/ui`. Follow these steps top-to-bottom:
 
@@ -86,7 +84,7 @@ Open `http://127.0.0.1:8000/ui`. Follow these steps top-to-bottom:
 - You can also use a regular PNG/JPEG for quick sanity checks.
 
 3) Create Workflow
-- Click Create. Copy appears as `workflow_id`.
+- Click "New Workflow". The `workflow_id` appears.
 
 4) Create Job
 - Pick a `job type`:
@@ -95,19 +93,14 @@ Open `http://127.0.0.1:8000/ui`. Follow these steps top-to-bottom:
 - Optional `branch`: jobs in the same branch run serially; different branches can run concurrently.
 - Click Create Job; you’ll see a `job_id`.
 
-5) Run / Observe
-- Click Start. Live updates auto-open (SSE). Progress grows to 1.0 and state becomes SUCCEEDED.
-- Job progress bar shows individual job completion (tiles processed).
-- Workflow progress bar shows aggregate progress across all jobs in the workflow.
-- Click "Watch Workflow" to see real-time workflow progress updates.
-- Click Open preview: opens a stitched downscaled overlay.
-- Click Download masks (zip): per-tile mask PNGs (+ preview) as a ZIP.
-- Click Download result: JSON manifest that lists all artifacts and metadata.
-
-Testing Serial Execution:
-- Use "Test Serial Execution" section to create 3 jobs in the same branch.
-- Click "Start All Jobs" - they will execute serially (one after another) since they share the same branch.
-- You can verify this by watching job states - only one will be RUNNING at a time.
+5) Start / Observe
+- Click "Start Queue" to start all PENDING jobs, or click "Start" on an individual job card.
+- Live updates stream via SSE. A small grey line shows queue reasons while PENDING, e.g.:
+  - "Queued: waiting for branch lock"
+  - "Queued: waiting for active-user slot (3/3)"
+  - "Queued: waiting for worker capacity"
+- Job progress shows tiles processed; workflow progress shows aggregate completion.
+- After success, use "Preview" (stitched overlay), "Artifacts" (ZIP of masks + preview), and "Download" (manifest JSON).
 
 Outputs are saved under `uploads/results/<job_id>/`.
 
@@ -147,6 +140,9 @@ Headers: `X-User-ID: <your-id>` unless noted.
 - Cancel (only PENDING): `POST /jobs/{job_id}/cancel`
 - Retry (not RUNNING): `POST /jobs/{job_id}/retry`
 
+- Queue status (UX helper): `GET /jobs/{job_id}/queue_status`
+  - returns: `{ queued: bool, waiting_for: ["USER_SLOT"|"BRANCH"|"WORKER"], active_users, max_active_users, active_workers, max_workers }`
+
 - Get job: `GET /jobs/{job_id}` → `{ state, progress, ... }`
 - Live updates: `GET /jobs/{job_id}/events?user_id=<same-X-User-ID>` (SSE)
 - Download manifest JSON: `GET /jobs/{job_id}/result`
@@ -155,6 +151,7 @@ Headers: `X-User-ID: <your-id>` unless noted.
 
 - Get workflow: `GET /workflows/{workflow_id}` → `{ state, percent_complete, ... }`
 - Live workflow updates: `GET /workflows/{workflow_id}/events?user_id=<same-X-User-ID>` (SSE)
+ - List jobs in workflow: `GET /workflows/{workflow_id}/jobs`
 
 ---
 
@@ -177,14 +174,6 @@ Headers: `X-User-ID: <your-id>` unless noted.
 
 - Resilience
   - Add retries with backoff at tile level. Persist job state and artifacts to object storage (e.g., S3).
-
----
-
-## 7) Testing & Monitoring
-
-- Unit tests: scheduler (serial-in-branch), max workers, active-user gate, job store.
-- Integration tests: upload → create workflow → job → start → progress → artifacts.
-- Monitoring: add `/metrics` (Prometheus), structured logs, and alerts on failures/slow jobs.
 
 ---
 
@@ -229,10 +218,5 @@ uploads/
 ```
 
 ---
-
-## 10) Notes
-
-- Security: for a prod environment, add file size limits, MIME checks, auth, rate limits, and persistence.
-- Deployment: optionally package with docker-compose (API + worker(s) + Redis + Prometheus + Grafana).
 
 
