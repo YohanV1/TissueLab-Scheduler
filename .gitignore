@@ -12,3 +12,6 @@ wheels/
 # Data and uploads
 uploads/
 samples/*.svs
+
+*.pdf
+*.mov

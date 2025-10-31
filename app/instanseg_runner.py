@@ -96,17 +96,29 @@ def segment_cells_on_tile(tile_image: Image.Image) -> Dict[str, Any]:
         try:
             import numpy as np  # type: ignore
             img_np = np.array(tile_image.convert("RGB"))
-            # Try common invocation patterns
-            out = None
-            if hasattr(model, "predict"):
-                out = model.predict(img_np)  # type: ignore[attr-defined]
-            elif hasattr(model, "infer"):
-                out = model.infer(img_np)  # type: ignore[attr-defined]
-            elif callable(model):
-                out = model(img_np)
-            mask_img = _to_mask_image(out, width, height)
-            if mask_img is not None:
-                return {"mask": mask_img}
+
+            # InstanSeg exposes eval_small_image / eval_medium_image; prefer the
+            # small-image path for per-tile inference.
+            labels = model.eval_small_image(  # type: ignore[attr-defined]
+                img_np,
+                return_image_tensor=False,
+                target="cells",
+            )
+
+            import torch  # type: ignore
+
+            if isinstance(labels, torch.Tensor):
+                labels_np = labels.cpu().numpy()
+            else:
+                labels_np = np.array(labels)
+            if labels_np.ndim == 4:
+                labels_np = labels_np[0]
+            if labels_np.ndim == 3:
+                labels_np = labels_np[0]
+
+            binary = (labels_np > 0).astype("uint8") * 255
+            mask = Image.fromarray(binary, mode="L")
+            return {"mask": mask}
         except Exception:
             pass
 

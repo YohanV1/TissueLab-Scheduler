@@ -136,7 +136,7 @@ async def run_job(job_id: str) -> None:
                 "preview": preview_path,
                 "tile_size": TILE_SIZE,
                 "overlap": TILE_OVERLAP,
-                "note": "InstanSeg path wired (stub per tile). Replace stub with real predictions.",
+                "note": "InstanSeg cell segmentation mask per tile (labels > 0).",
             }
         elif job.job_type == JobType.TISSUE_MASK:
             tiles_info: list[dict[str, object]] = []
